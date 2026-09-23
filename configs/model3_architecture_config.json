@@ -1,0 +1,57 @@
+{
+  "stage": "STAGE 7 - final model implementation (no training)",
+  "model_class": "Model3TypedEquivariant (code_v2/model3_typed_equivariant.py)",
+  "comparison_model_unchanged": "code/model.py::P4MOrientationNet (Model 2, historical post-hoc formulation, not modified)",
+  "group": {
+    "name": "D8",
+    "order": 16,
+    "escnn_construction": "gspaces.flipRot2dOnR2(N=8)",
+    "nematic_representation": "group.irrep(1,2)",
+    "nematic_representation_size": 2,
+    "verified_not_D4": true,
+    "note": "D4's irrep(1,2) is only 1-dimensional (degenerate) -- established in Phase 1R; D8 is used exclusively, per Stage 7 instruction #5"
+  },
+  "architecture": {
+    "input_type": "3 x trivial_repr (RGB)",
+    "input_patch_size": [128, 128],
+    "block1": "R2Conv(k=5,pad=2,bias=False) -> InnerBatchNorm -> ReLU, c1=8 regular-repr fields (64 raw channels)",
+    "pool1": "PointwiseAvgPoolAntialiased(sigma=0.66, stride=2) -> spatial resolution H/2 x W/2",
+    "block2": "R2Conv(k=5,pad=2,bias=False) -> InnerBatchNorm -> ReLU, c2=8 regular-repr fields (64 raw channels) -- SHARED representation",
+    "classification_head": "GroupPooling -> AdaptiveAvgPool2d(1) -> Linear(8, n_classes=2)",
+    "q_head": "R2Conv(shared_type -> FieldType([D8.irrep(1,2)]), k=3, pad=1, bias=False) -- dense output at H/2 x W/2, NOT globally pooled",
+    "c1": 8,
+    "c2": 8,
+    "n_classes": 2
+  },
+  "parameter_count": 11674,
+  "q_parameterization": {
+    "S": "sqrt(q1^2 + q2^2)",
+    "theta": "0.5 * atan2(q2, q1)",
+    "head_tail_convention": "theta === theta + pi (verified: Q(theta+pi) == Q(theta) to machine precision)",
+    "no_arbitrary_preferred_orientation": true,
+    "S_positivity": "guaranteed by construction (Euclidean norm), no additional clamping/abs operation applied"
+  },
+  "loss": {
+    "file": "code_v2/model3_loss.py",
+    "formula": "L_total = L_class + lambda_Q * L_Q",
+    "L_class": "cross-entropy on per-patch benign/malignant label (reuses code/data_prep.py label parsing, unmodified)",
+    "L_Q": "masked MSE on (q1,q2) at Stage-4-valid locations only, resolution-matched via 2x2 average pooling with an all-4-valid conservative masking rule",
+    "lambda_Q": 1.0,
+    "lambda_Q_status": "fixed, documented, NOT tuned, NOT pathology-dependent, NOT test-set-dependent"
+  },
+  "target_masking": {
+    "source": "Stage 4 persisted fields (results_v2/anatomy_targets/stage4_fields/*.npz), validity rules UNCHANGED from docs_v2/phase2_target_spec.md",
+    "resolution_mismatch_handling": "model Q head outputs at H/2 x W/2 (one stride-2 pool in block1); Stage 4 target is at native H x W; downsampled via 2x2 avg-pool for q1/q2, validity mask downsampled via an all-4-valid rule (conservative -- avoids blending valid/invalid pixels into an ambiguous partially-fabricated value)",
+    "zero_valid_patches": "contribute 0 to L_Q and are excluded from the batch average (not treated as a perfect prediction)"
+  },
+  "reproducibility": {
+    "python": "3.11.8",
+    "torch_version": "2.6.0+cu124",
+    "escnn_version": "1.0.11",
+    "cuda_available": true,
+    "gpu": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+    "dtype": "float32 (FP32; mixed precision NOT enabled per Stage 7 instruction #11 -- architecture fits safely in FP32, see memory estimate in reports/STAGE7_AUDIT_REPORT.md)",
+    "random_seed_for_tests": 42
+  },
+  "no_training_performed_in_stage7": true
+}

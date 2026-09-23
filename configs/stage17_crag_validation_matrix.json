@@ -1,0 +1,98 @@
+{
+  "stage": "STAGE 17 - CRAG Independent Cross-Dataset Validation",
+  "frozen_before_any_model_inference": true,
+
+  "dataset_capability_audit_summary": {
+    "location": "G:\\MDPI Symmetry\\data\\CRAG\\OpenDataLab___CRAG\\raw\\CRAG\\extracted\\CRAG (user-provided, downloaded from OpenDataLab after the official Warwick source proved inaccessible without institutional SSO)",
+    "provenance": "Colorectal Adenocarcinoma Gland (CRAG) Dataset v2, released with the MILD-Net paper (Graham et al., Medical Image Analysis 2019); acquired from University Hospitals Coventry and Warwickshire (UHCW) NHS Trust, curated by the University of Warwick Tissue Image Analytics (TIA) lab.",
+    "n_images": {"train": 173, "test_valid_folder": 40, "total": 213, "matches_README": true},
+    "image_dimensions": "8 distinct sizes, all approx 1500-1514 (W) x 1516 (H); no resizing needed, all >> 128px patch size",
+    "image_format": "PNG, RGB, no corruption detected (PIL verify() on all 213), no exact-duplicate files (content MD5, all 213 unique)",
+    "annotation_format": "PNG, uint8, single-channel, instance-labeled (0=background, 1..N=gland instance id) -- STRUCTURALLY IDENTICAL to GlaS's mask format",
+    "annotation_pairing": "all 213 images have exactly one matching Annotation file by filename stem; zero unpaired files",
+    "pathology_labels": "NONE FOUND. No CSV/JSON/XML/grade file of any kind exists anywhere in the archive beyond README.txt. CRAG provides images + instance masks + human-readable overlays ONLY -- no benign/malignant, no tumor grade, no clinical metadata of any kind.",
+    "patient_metadata": "NONE FOUND -- no patient/case identifiers anywhere in the distribution.",
+    "official_splits": "train/ (173 images) and valid/ (40 images, files prefixed 'test_') -- README calls the 40-image folder the 'test set'; the folder is literally named 'valid'. This is CRAG's OWN split for people training on CRAG; Model 3 was never trained on ANY CRAG image (train or valid), so both are equally 'held out' from Model 3's perspective -- see population definition below.",
+    "license": "README.txt states only a citation requirement (must cite the MILD-Net paper); no separate machine-readable LICENSE file was found in the archive.",
+    "gland_instance_stats": {
+      "total_gland_instances": 3054, "mean_per_image": 14.34, "min_per_image": 1, "max_per_image": 79,
+      "too_small_MIN_GLAND_PIXELS_lt_20": 0, "border_truncated_frac_ge_0.02": 259, "numerically_unstable": 0, "near_isotropic_S_cov_lt_0.15": 238,
+      "note": "using the EXACT unmodified Stage 4 thresholds (MIN_GLAND_PIXELS=20, BORDER_FRAC_THRESHOLD=0.02, DEFAULT_S_THRESHOLD=0.15) -- none were changed or tuned for CRAG."
+    },
+    "compatibility_finding_CRITICAL": "70 of 213 images (33%) contain at least one gland instance whose area exceeds 30% of that image's total pixel area (30 instances exceed 50%; the single largest instance covers 92.9% of its image). All such large instances are single connected components (n_connected_components=1), not an artifact of the fragmentation check. GlaS's largest gland instance, by contrast, is 358,105 px (well under any comparable image-area fraction). This indicates CRAG's annotation convention frequently labels large, fused/cribriform glandular regions -- common in more aggressive colorectal adenocarcinoma histology -- as a SINGLE gland instance, whereas GlaS's instances are, on average, much smaller and more numerous relative to image size. This is a genuine, documented ANNOTATION-CONVENTION DIFFERENCE, not a data defect and not something corrected here: the existing Stage 4 validity rules (which check only too-small, border-truncation, numerical instability, and near-isotropy) do not flag these large fused instances, and per instruction section 15 ('do not tune validity thresholds on CRAG'), no new upper-size exclusion rule is introduced. These large instances are therefore treated as VALID under the unchanged GlaS rule set and will contribute to the CRAG anatomical target -- but their PCA-derived orientation represents a much coarser, less spatially localized quantity than a typical GlaS gland's orientation, which materially limits how directly 'gland-level anatomical correspondence' can be compared between the two datasets. This limitation is carried into the final interpretation, not hidden."
+  },
+
+  "external_independence_assessment": {
+    "same_institution_and_group": "CONFIRMED: both GlaS and CRAG were acquired from the same source hospital (University Hospitals Coventry and Warwickshire, UHCW) and curated by the same research group (Warwick TIA lab) -- verified via the MILD-Net paper and Warwick's own dataset pages. Independence is therefore NOT claimed in the strong sense of 'unrelated cohort/institution/scanner pipeline'.",
+    "exact_duplicate_check": "EXHAUSTIVE: all 165 GlaS images vs all 213 CRAG images compared by content MD5 hash -- zero exact matches.",
+    "near_duplicate_check": "PARTIAL/SAMPLED ONLY: a 20x20 grayscale-thumbnail L2-distance comparison on a small sample from each dataset found no near-identical images; this is NOT an exhaustive 165x213 near-duplicate search and is reported as a limited, sampled check, not proof of zero near-duplicates.",
+    "conclusion": "CRAG is a DISTINCT, non-overlapping image set from GlaS (no shared files, no shared patient/case identifiers available to check further), but it is NOT institutionally or cohort-independent in the strong sense -- both datasets share source hospital and curating lab. This stage therefore uses the term 'external cross-dataset validation' throughout and explicitly avoids the terms 'independent proof' or 'definitive replication', per instruction section 11."
+  },
+
+  "frozen_model": {
+    "checkpoint": "results_v2/model3/checkpoints/checkpoint_final.pt", "md5_expected": "5495ddeba84d3169c2a6b63ad22fbdcb",
+    "loading": "model.eval() then load_state_dict(), torch.no_grad() for all inference; no optimizer, no gradient step, no checkpoint selection -- identical loading pattern to Stages 11/12/16."
+  },
+
+  "target_construction": {
+    "method": "IDENTICAL, UNMODIFIED Stage 4 pipeline: anatomy_targets.py::analyze_glands (PCA covariance orientation, S_cov/phi_cov) + build_full_image_field (S_choice='cov', DEFAULT_S_THRESHOLD=0.15, exclude_border_truncated=True) -- same thresholds, same coordinate convention, same head-tail symmetry, same Q=[[q1,q2],[q2,-q1]] convention as GlaS. No CRAG-specific tensor definition, eigenvector convention, normalization, or threshold is introduced.",
+    "validated_compatible": "CONFIRMED by direct execution on sample CRAG masks before any design commitment: analyze_glands runs cleanly (0 numerically-unstable instances across all 3054), confirming CRAG's instance-labeled mask format is compatible with the existing mathematical definition without modification.",
+    "large_fused_instances": "Not excluded, not specially handled -- see compatibility_finding_CRITICAL above. Documented as a limitation, not silently repaired."
+  },
+
+  "patch_extraction": {
+    "patch_size": 128, "stride": 96, "rule": "IDENTICAL to the established project framework (code/data_prep.py::extract_patches + anatomy_targets.py::crop_field_to_patches) -- unchanged because CRAG's image dimensions (>=1319x1516) comfortably support this patch size without modification.",
+    "min_valid_fraction_for_patch": 0.10, "rule_source": "IDENTICAL, unmodified value from code_v2/phase2_calibration.py::MIN_VALID_FRACTION_FOR_PATCH -- not retuned for CRAG.",
+    "estimated_valid_patches": "~25,000-26,000 across all 213 images (estimated from a 40-image pre-check before full extraction) -- roughly 12x GlaS's pooled testA+testB patch count (2083), because CRAG's tiles are larger and its patch grid therefore denser per image."
+  },
+
+  "population_and_unit_of_analysis": {
+    "primary_population": "ALL 213 CRAG images (173 'train' + 40 'valid'/test) -- Model 3 was never trained on ANY CRAG image, so both of CRAG's own internal splits are equally held-out from Model 3's perspective. Reported separately (CRAG-train, CRAG-test) AND pooled (all 213), mirroring GlaS's testA/testB/pooled convention. No CRAG image is excluded for any reason.",
+    "image_level_primary_unit": "Per instruction sections 12-13, IMAGE is treated as the primary independent unit for statistical inference: one (S_DL, phi_DL) and one (S_anat, phi_anat) value per image, each the unweighted mean (in vector (q1,q2) space, then S/phi derived) over that image's valid patches. This is a NEW, but pre-specified-before-results, aggregation rule -- chosen specifically because CRAG's much higher patch density per image (~120 valid patches/image vs GlaS's ~26) would otherwise pseudo-replicate a single image's signal far more than in Stage 11's GlaS analysis.",
+    "patch_level_secondary_diagnostic": "For direct comparability with Stage 11's own patch-level metric definition, a SECOND, patch-level analysis is also run using the EXACT SAME compute_full_metrics function as Stage 11, on a deterministic, fixed-seed (42) random subsample of AT MOST 5000 valid patches (stratified proportionally by image), decided now purely for O(n^2) pairwise-permutation memory/compute tractability (Stage 11's own null-construction is O(n^2) in patch count; ~25,000 patches would require an infeasible amount of memory for the exact same procedure). If total valid patches are <=5000 (not expected, but possible if the extraction differs from the pre-check estimate), no subsampling occurs. This subsampling is a computational-tractability decision made before any Model 3 prediction is inspected, not a favorable-result selection.",
+    "gland_level": "Not used as a modeling unit (Model 3 predicts per-patch/per-pixel, not per-gland-instance); gland-level statistics are reported only in the dataset/target audit (counts, validity, area)."
+  },
+
+  "primary_external_validation": {
+    "metrics": "IDENTICAL formulas to Stage 11's compute_full_metrics: angular correspondence with Glass's Delta, order-magnitude Pearson/Spearman r with bootstrap 95% CI, tensor similarity D_Q with permutation p -- reused unmodified.",
+    "threshold_policy": "The GlaS preregistered numerical thresholds (Glass's Delta>=0.5, r>=0.30, etc.) are REPORTED for descriptive comparison only and are explicitly NOT treated as formal CRAG pass/fail criteria -- the original protocol never established them as external-validation thresholds. No new 'CRAG success threshold' is defined anywhere in this matrix or invented after seeing results.",
+    "terminology": "Results are described as 'external cross-dataset validation', never as 'independent proof' or 'definitive replication', per the independence assessment above."
+  },
+
+  "rotation_consistency": {
+    "included": true,
+    "justification_for_inclusion_decided_now": "Rotation consistency reuses Stage 12's existing, cheap, no-retraining protocol and directly extends this stage's 'does the frozen representation behave the same way on unseen data' question; included in the frozen scope from the start, not added after seeing anatomical results.",
+    "population": "The same deterministic <=5000-patch subsample used for the patch-level anatomical diagnostic (for direct comparability and shared compute).",
+    "protocol": "IDENTICAL to Stage 12: angle grid [0,15,30,37,45,60,90,123,150,173], skimage.transform.rotate with angle=+alpha_deg, mode='reflect', order=1 (model's own sign convention, unchanged), same normalized_equivariance_error formula, same frozen per-angle local_thresholds from preregistered_thresholds_v2.json.",
+    "reduction": "Center-pixel of the dense (H2,W2) field -- IDENTICAL to Stage 12's original definition (not Stage 16's multi-scale sweep; multi-scale is explicitly NOT included in this stage, see below), for maximum direct comparability with the ORIGINAL Stage 12 result.",
+    "threshold_policy": "Pass/fail is reported ONLY as a descriptive comparison against the ORIGINAL frozen Stage 12 threshold (>=7/9 non-zero angles) -- this is explicitly NOT a new official Criterion D decision for CRAG."
+  },
+
+  "multiscale_analysis": {
+    "included": false,
+    "reason_decided_now": "To control scope and compute, and because Stage 16 already established the frozen 6-scale set exists for a SEPARATE diagnostic purpose on GlaS, multi-scale evaluation is not included in this stage's frozen design. Per instruction section 17, it is not added after seeing primary CRAG results; a dedicated future stage with its own design freeze would be required to extend Stage 16's scale sweep to CRAG."
+  },
+
+  "domain_shift_descriptive_variables": {
+    "planned_comparisons": ["image dimensions (GlaS ~775x522 vs CRAG ~1500-1516 square-ish tiles)", "gland area distribution (GlaS mean 21,363px vs CRAG mean 74,425px)", "glands per image (GlaS vs CRAG)", "fraction of images with a dominant (>30% area) fused gland instance (GlaS: not previously characterized this way; CRAG: 33%, computed above)", "valid-patch yield per image"],
+    "purpose": "descriptive characterization only -- explicitly not used to explain away, excuse, or retroactively justify any CRAG correspondence result in either direction, per instruction section 18."
+  },
+
+  "statistical_inference": {
+    "bootstrap_seed": 42, "bootstrap_n": 2000,
+    "unit_for_bootstrap": "IMAGE for the image-level primary analysis (resampling images with replacement); patches within the patch-level secondary diagnostic follow Stage 11's own established patch-level bootstrap convention unchanged, for direct comparability with that specific prior result.",
+    "no_cross_dataset_pooling": "GlaS and CRAG results are NEVER pooled into a single combined statistic anywhere in this stage -- always reported side by side, descriptively."
+  },
+
+  "no_test_set_rescue_restated": [
+    "All 213 CRAG images are used; none are excluded as 'difficult'.",
+    "The <=5000-patch subsample for the patch-level/rotation analyses is a PRE-SPECIFIED, fixed-seed, tractability-driven sampling rule decided before any Model 3 output on CRAG exists -- it is not a favorable-subset selection and does not affect the image-level primary analysis, which uses all 213 images."
+  ],
+
+  "leakage_audit_plan": [
+    "Verify CRAG did not exist anywhere on disk before this stage (confirmed: data/CRAG/ was created only in response to this stage's explicit user-provided path).",
+    "Verify no CRAG file path, filename, or content appears anywhere in code_v2/stage9_train_baselines.py, stage10_train_model3.py, or any training script (grep-verified).",
+    "Verify checkpoint MD5 unchanged before and after this stage.",
+    "Verify preregistered_thresholds_v2.json unchanged (read-only, comparison reference only)."
+  ]
+}

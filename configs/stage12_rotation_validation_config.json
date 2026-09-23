@@ -1,0 +1,43 @@
+{
+  "stage": "STAGE 12 - Rotation Consistency Validation",
+  "protocol_source": {
+    "file": "results_v2/phase2/preregistered_thresholds_v2.json",
+    "criterion": "D_rotation_consistency",
+    "note": "This criterion's protocol (angle grid + frozen per-angle local_thresholds) was NOT missing -- it is fully specified in the frozen preregistration and is used here verbatim, with no recomputation, no new angle grid, and no multiplier change."
+  },
+  "rotation_angles_deg": [0, 15, 30, 37, 45, 60, 90, 123, 150, 173],
+  "angle_0_role": "identity/sanity-check only -- NOT one of the 9 angles counted toward the >=7/9 pass rule (matches the frozen protocol's own list, which includes 0 alongside the 9 non-zero angles, and matches the identical precedent in code_v2/run_synthetic_benchmark.py::measure_equivariance_error, which uses this exact same 10-angle list with angle=0 handled as a no-op)",
+  "local_thresholds_used_verbatim_from_frozen_file": {
+    "15": 0.3503, "30": 0.5339, "37": 0.5809, "45": 0.6527,
+    "60": 0.8228, "90": 1.0362, "123": 1.235, "150": 1.2877, "173": 1.2556
+  },
+  "pass_rule": "model_error(angle) < local_threshold(angle) for >= 7 of the 9 non-zero angles",
+  "resolutions_of_underspecified_details": [
+    {
+      "item": "Input image population for the rotation-consistency test",
+      "resolution": "Pooled testA+testB patches (2083), reused directly from Stage 11's already-established held-out evaluation population (results_v2/baselines/_patch_cache/{testA,testB}.npz) -- NOT a new sample. No patches excluded (including the fragmented testB images). This is a documented reuse of an existing artifact, not an invented population; it also matches the project's established pattern of using the full held-out set for any Stage-11-or-later evaluation.",
+      "precedent": "Same reuse-not-invent resolution pattern as Stage 10's config (configs/stage10_model3_training_config.json)."
+    },
+    {
+      "item": "Scalar (q1, q2) reduction from Model 3's dense (B, 2, H/2, W/2) output",
+      "resolution": "Center pixel of the dense field ((H/2)//2, (W/2)//2), i.e. same spatial-index convention as oracle_baselines.py::structure_tensor_estimate (which also reduces its dense structure-tensor computation to the single center pixel). This is the SAME reduction convention used to build the frozen real-H&E floor thresholds themselves (via calibration_rotation_floor -> structure_tensor_estimate), so the model-side error is computed compatibly with the floor it is compared against.",
+      "precedent": "code_v2/oracle_baselines.py::structure_tensor_estimate, lines 30-31."
+    },
+    {
+      "item": "Rotation sign convention for rotating the MODEL's input image",
+      "resolution": "skimage.transform.rotate(img, angle=+alpha_deg, mode='reflect', order=1) -- the MODEL's own verified convention (positive alpha), established independently in code_v2/run_synthetic_benchmark.py::measure_equivariance_error and explicitly NOT the oracle/structure-tensor's convention (which uses angle=-alpha_deg, see code_v2/phase2_calibration.py::calibration_rotation_floor). These two conventions are opposite and must not be conflated -- documented explicitly per project history.",
+      "precedent": "code_v2/run_synthetic_benchmark.py module docstring and measure_equivariance_error function (identical 10-angle list, identical rotate/mode/order arguments, identical normalized_equivariance_error formula)."
+    }
+  ],
+  "metric_formula": "nematic_math.normalized_equivariance_error: mean_over_patches( ||q_model(R_alpha x) - R(2 alpha).q_model(x)|| / (||R(2 alpha).q_model(x)|| + eps) )",
+  "checkpoint": "results_v2/model3/checkpoints/checkpoint_final.pt (frozen Stage 10 artifact, MD5 5495ddeba84d3169c2a6b63ad22fbdcb) -- no retraining, no fine-tuning.",
+  "additional_checks_from_frozen_file": [
+    "S(R_alpha x) approx S(x): mean |S_rotated - S_original| across test images and angles",
+    "phi(R_alpha x) approx phi(x) + alpha (mod pi): mean angular deviation from expected shift"
+  ],
+  "explicit_scope_limits": [
+    "This stage measures EMPIRICAL, finite-grid, whole-network rotation consistency under pixel-domain interpolation at specific degree angles -- it does NOT claim mathematically exact continuous equivariance for the complete network.",
+    "This stage does NOT alter, rescue, or combine with Stage 11's HOLD status. Stage 11 remains HOLD regardless of this stage's outcome.",
+    "No threshold, angle grid, or multiplier is recalculated, tuned, or flattened based on Model 3's observed results."
+  ]
+}

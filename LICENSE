@@ -1,0 +1,14 @@
+LICENSE — TO BE SELECTED BY THE AUTHORS
+
+This code repository does not yet carry a chosen open-source license. Selecting a license (e.g., MIT,
+Apache-2.0, BSD-3-Clause, or another permissive license commonly used for research code) is a decision
+for the authors to make.
+
+Until a license is selected and this file is replaced with its full text, no license is granted for
+reuse of this code beyond what is necessary for peer review of the associated manuscript.
+
+This LICENSE file governs only the code and text authored by the paper's authors in this repository
+(`src/`, `configs/`, `scripts/`, `analysis/`, `manuscript/`, and this repository's own documentation).
+It does NOT apply to, and does not grant any rights over, the third-party datasets referenced by this
+project (GlaS, CRAG, PANDA), which remain governed by their own original providers' terms — see
+`README.md`, "Dataset access and licensing."

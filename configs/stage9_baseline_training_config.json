@@ -1,0 +1,64 @@
+{
+  "stage": "STAGE 9 - baseline training",
+  "written_before_training": true,
+  "do_not_edit_after_seeing_results": true,
+  "data_split": {
+    "canonical_train_images": 85,
+    "held_out_testA_images": 60,
+    "held_out_testB_images": 20,
+    "development_partition": {
+      "definition": "carved from the 85 canonical TRAIN images ONLY, never from testA/testB -- satisfies the instruction's allowance for 'a predefined development partition' for early-stopping decisions",
+      "method": "stratified 80/20 split by grade label, sklearn train_test_split, random_state=42",
+      "train_inner_images": 68,
+      "dev_images": 17
+    },
+    "patch_extraction": "128x128, stride 96, reusing code/data_prep.py::extract_patches exactly (unmodified)",
+    "patch_inclusion_rule": ">= 10% valid anatomical-target coverage (same threshold established in Stage 0/0-recalibration and Stage 8, reused for consistency, not re-chosen)"
+  },
+  "models": {
+    "plain_cnn": {
+      "class": "PlainCNNDualHead (code_v2/baseline_cnn_dualhead.py, NEW file -- code_v2/baseline_cnn.py from Phase 1R is NOT modified)",
+      "backbone": "same channel widths as Phase 1R's PlainCNN (c1=64, c2=64 raw channels) for comparable non-equivariant capacity",
+      "q_head": "plain Conv2d(c2, 2, k=3, pad=1) -> dense (q1,q2), no equivariance constraint",
+      "classification_head": "GlobalAvgPool -> Linear(c2, 2)",
+      "label": "PLAIN CNN BASELINE -- no equivariance, no physical typing"
+    },
+    "model2": {
+      "class": "P4MOrientationNet (code/model.py, UNCHANGED -- the original pilot's implementation)",
+      "label": "POST-HOC / UN-TYPED ORIENTATION REPRESENTATION -- 8 raw regular-representation channels, filter index 0, angle assignment rot_idx*90deg (established in the original pilot), NOT constrained by representation theory",
+      "q_construction": "code_v2/model2_posthoc_q.py (NEW, torch-differentiable port of code/math_utils.py::Q_from_orientation_response's formula -- code/math_utils.py itself is NOT modified)"
+    },
+    "model3_explicitly_excluded_this_stage": true
+  },
+  "loss": {
+    "formula": "L_total = L_class + lambda_Q * L_Q",
+    "lambda_Q": 1.0,
+    "L_class": "cross-entropy on patch grade label",
+    "L_Q": "masked MSE on (q1,q2) at Stage-4-valid locations, same resolution-alignment convention (2x2 avg-pool target, all-4-valid mask rule) established in code_v2/model3_loss.py, reused for both baselines for a structurally fair comparison",
+    "note": "identical loss STRUCTURE and lambda_Q applied to both baselines, differing only in how each model constructs its Q output (typed vs post-hoc vs unconstrained) -- not tuned per-model"
+  },
+  "optimizer": {
+    "type": "Adam",
+    "lr": 1e-3,
+    "note": "same value already established in Stage 7/8, reused for consistency -- not re-tuned for Stage 9"
+  },
+  "training_protocol": {
+    "batch_size": 32,
+    "max_epochs": 40,
+    "early_stopping_patience": 6,
+    "early_stopping_metric": "dev set L_total (from the train_inner/dev partition defined above, NEVER testA/testB)",
+    "seed": 42
+  },
+  "environment": {
+    "python": "3.11.8", "torch": "2.6.0+cu124", "escnn": "1.0.11",
+    "device": "cuda (RTX 3050 6GB)", "dtype": "float32"
+  },
+  "held_out_evaluation": {
+    "sets": ["testA", "testB"],
+    "reported_separately_not_pooled": true,
+    "used_for_model_selection": false,
+    "geometric_metrics": ["A_angular_correspondence", "B_order_magnitude_correlation", "C_tensor_similarity", "D_rotation_consistency"],
+    "metric_definitions_source": "results_v2/phase2/preregistered_thresholds_v2.json (read-only, not modified)",
+    "model2_permutation_null": "applied to Model 2 only, reusing the exact channel-permutation methodology from code/experiments.py::channel_permutation_null (original pilot) -- NOT applied to Model 3 (not trained this stage) since it has no arbitrary channel-to-angle mapping"
+  }
+}

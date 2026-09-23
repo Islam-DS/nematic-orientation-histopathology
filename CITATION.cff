@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: >-
+  If you use this code, please cite the associated manuscript. Full citation details (volume, issue,
+  page numbers, DOI) will be added once the manuscript is accepted and published; this file is a
+  placeholder until then.
+title: >-
+  From Equivariance to Nematic Order: Anatomically Supervised Orientation-Tensor Learning in
+  Histopathology
+authors:
+  - given-names: Md. Mahbubul
+    family-names: Islam
+    orcid: "https://orcid.org/0009-0009-1910-1980"
+    affiliation: >-
+      Al-Farabi Kazakh National University, Almaty, Kazakhstan; Institute of Industrial Electronics,
+      Electrical Engineering and Energy, Riga Technical University, Riga, Latvia
+  - given-names: Ainur
+    family-names: Yerkos
+    orcid: "https://orcid.org/0000-0001-5949-6942"
+    affiliation: >-
+      Al-Farabi Kazakh National University, Almaty, Kazakhstan; Institute of Industrial Electronics,
+      Electrical Engineering and Energy, Riga Technical University, Riga, Latvia
+  - given-names: Nadezhda
+    family-names: Kunicina
+    orcid: "https://orcid.org/0000-0002-0980-0958"
+    affiliation: >-
+      Al-Farabi Kazakh National University, Almaty, Kazakhstan; Institute of Industrial Electronics,
+      Electrical Engineering and Energy, Riga Technical University, Riga, Latvia
+type: software
+repository-code: "(add once the GitHub repository URL is known)"
+license-url: "(pending author license selection — see LICENSE)"

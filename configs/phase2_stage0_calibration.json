@@ -1,0 +1,49 @@
+{
+  "stage": "STAGE 0",
+  "purpose": "real-H&E rotation noise-floor + oracle-vs-anatomy calibration, feeding results_v2/phase2/preregistered_thresholds.json",
+  "git_commit": null,
+  "git_note": "not a git repository",
+  "environment": {
+    "python": "3.11.8",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "torch": "2.6.0+cu124",
+    "cuda": "12.4",
+    "gpu": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+    "escnn": "1.0.11",
+    "requirements_lock_file": "requirements-lock.txt"
+  },
+  "random_seeds": {
+    "SPLIT_SEED": 42,
+    "calibration_rotation_floor_subset_seed": 42,
+    "null_permutation_seed": 0
+  },
+  "reused_unmodified_code": [
+    "code/data_prep.py (build_image_label_table, extract_patches)",
+    "code_v2/anatomy_targets.py (analyze_glands, build_full_image_field, crop_field_to_patches)",
+    "code_v2/oracle_baselines.py (structure_tensor_estimate)",
+    "code_v2/nematic_math.py (rotate_Q_analytic, phi_S_to_q, angular_error_mod_pi)"
+  ],
+  "new_code_this_stage": ["code_v2/phase2_calibration.py"],
+  "split_replication": "test_size=0.2, random_state=42, stratify=label -- identical parameters to code/data_prep.py::build_patch_dataset; train/test membership itself is untouched, calibration only selects a deterministic sub-list of TRAIN images",
+  "calibration_subset": {
+    "n_images": 20,
+    "selection_rule": "first 20 train-split images sorted by filename stem",
+    "image_stems": [
+      "testA_1", "testA_13", "testA_14", "testA_15", "testA_16", "testA_17", "testA_18",
+      "testA_19", "testA_2", "testA_20", "testA_21", "testA_22", "testA_25", "testA_26",
+      "testA_27", "testA_28", "testA_3", "testA_30", "testA_31", "testA_32"
+    ],
+    "n_patches_with_sufficient_valid_target_coverage": 519,
+    "min_valid_fraction_threshold": 0.10
+  },
+  "sign_convention_bug_found_and_fixed_during_this_stage": {
+    "description": "initial calibration script used sk_rotate(angle=+alpha) for the oracle rotation-floor check, copied from Phase 1R's MODEL-specific convention; empirical verification showed the structure-tensor ORACLE needs sk_rotate(angle=-alpha) instead (opposite sign, matching the ORIGINAL Phase 1 pilot's stripe-test convention, not Phase 1R's escnn-model convention)",
+    "evidence": "for a synthetic test object, sk_rotate(angle=-alpha) recovered phi0+alpha to within ~1 deg for alpha in {20,45,70} deg; sk_rotate(angle=+alpha) did not (errors of 30-95 deg)",
+    "classification": "LEVEL 1 implementation bug per master-prompt change-control taxonomy -- fixed and retested before any threshold was frozen; no scientific design was altered",
+    "fixed_in": "code_v2/phase2_calibration.py::calibration_rotation_floor"
+  },
+  "output_files": [
+    "results_v2/phase2/calibration_report.json",
+    "results_v2/phase2/preregistered_thresholds.json"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "stage": "STAGE 13 - Model 2 Permutation-Null Analysis",
+  "scope": "Model 2 (code/model.py::P4MOrientationNet) ONLY. Model 3 not loaded, not evaluated, not modified.",
+  "checkpoint": {
+    "path": "results_v2/baselines/model2/checkpoint_final.pt",
+    "produced_by": "code_v2/stage9_train_baselines.py::main() (single training run, saved immediately after training, before held-out evaluation)",
+    "note": "The only checkpoint file in results_v2/baselines/model2/ -- unambiguous identity, no selection among candidates was required."
+  },
+  "reused_verbatim_from_stage9": {
+    "function": "code_v2/stage9_train_baselines.py::model2_permutation_null",
+    "observed_statistic": "obs_S = mean over ALL spatial locations and ALL patches of hypot(q1, q2), where (q1,q2) = posthoc_q_dense(orientation_features, thetas) using the ORIGINAL (unpermuted) channel order. This is a GLOBAL unmasked mean -- NOT the masked per-patch (S,phi) reduction used elsewhere in Stage 9/11's geometric_metrics. This distinction is preserved exactly as implemented, not changed for consistency with other metrics.",
+    "permutation_mechanism": "code_v2/model2_posthoc_q.py::permute_channel_angle_mapping -- permutes the 8-channel axis of the raw orientation_features tensor (leaving thetas = model.orientation_angles() fixed), which is mathematically equivalent to reassigning channel k -> theta_{pi(k)} for a random permutation pi of range(8).",
+    "n_permutations": 100,
+    "seed": 0,
+    "z_score_formula": "(obs_S - null_S.mean()) / (null_S.std() + 1e-8)"
+  },
+  "angle_assignment_source": "model.orientation_angles() (code/model.py, P4MOrientationNet) -- the model's ACTUAL p4m/D4 (N=4, order 8) angle assignment: rot_idx * (2*pi/4) for rot_idx in {0,1,2,3}, each of the 4 distinct angles appearing at 2 channels (flip and no-flip). This is the exact, already-established implementation, used verbatim rather than the master prompt's simplified theta_k = 2*pi*k/8 description.",
+  "resolutions_of_underspecified_details": [
+    {
+      "item": "Empirical permutation p-value (not computed by Stage 9's model2_permutation_null, which reports only z-score)",
+      "resolution": "p = fraction of the 100 null_S draws that are <= the observed statistic (one-sided, in the direction actually observed since z < 0 in Stage 9's prior result: (null_S <= obs_S).mean()). This exact directional convention (null <= observed) is the SAME formula already used elsewhere in this codebase for a one-sided permutation p-value (code_v2/stage9_train_baselines.py::geometric_metrics, p_perm_DQ = (null_mean_DQ <= D_Q.mean()).mean()), reused for consistency rather than invented. A two-sided p-value is also reported as a labeled secondary diagnostic.",
+      "precedent": "code_v2/stage9_train_baselines.py::geometric_metrics"
+    }
+  ],
+  "explicit_scope_limits": [
+    "This stage does not retrain, fine-tune, or modify Model 2 in any way.",
+    "This stage does not alter Stage 11's HOLD status or Stage 12's HOLD status.",
+    "This stage is not a Model 2 vs Model 3 comparison and computes no ranking or overall score.",
+    "A negative z-score is reported descriptively (observed statistic below the null mean); no mechanistic, biological, or 'anti-nematic' interpretation is attached to the sign."
+  ]
+}

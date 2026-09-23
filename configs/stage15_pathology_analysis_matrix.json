@@ -1,0 +1,140 @@
+{
+  "stage": "STAGE 15 - Pathology / Morphology Association Analysis",
+  "frozen_before_any_statistical_result": true,
+
+  "dataset_capability_audit_summary": {
+    "true_pathology_labels_found": [
+      {
+        "name": "grade_label / grade (GlaS)",
+        "source": "data/glas/Warwick_QU_Dataset/Grade.csv, column ' grade (GlaS)' (also already carried into data_manifests/glas_manifest_stage3_finalized.csv as 'grade_label', 0=benign/1=malignant)",
+        "type": "binary categorical (benign / malignant)",
+        "level": "image",
+        "n_observations": 165,
+        "missingness": 0,
+        "independent_of_model_prediction": "YES for the orientation/order representation (S_DL, phi_DL) -- this label is what the CLASSIFICATION HEAD was trained on, so it is NOT independent of logits/accuracy (already reported in Stage 9/11/14), but the Q-head's (S_DL, phi_DL) output has no direct supervision from this label (Model 3's loss has no term connecting q_head to grade_label) -- association between (S_DL, phi_DL) and grade_label is therefore a non-circular question",
+        "category": "A_true_pathology_label"
+      },
+      {
+        "name": "ordinal_grade / grade (Sirinukunwattana et al. 2015)",
+        "source": "data/glas/Warwick_QU_Dataset/Grade.csv, column ' grade (Sirinukunwattana et al. 2015)' -- NOT previously loaded or used anywhere in code/ or code_v2/ (verified by grep)",
+        "type": "5-level ordinal categorical: healthy < adenomatous < moderately differentiated < moderately-to-poorly differentiated < poorly differentiated (standard disease-severity ordering per the original GlaS grading scheme; verified consistent with grade_label: crosstab shows healthy+adenomatous are 100% benign, the other 3 levels are 100% malignant)",
+        "level": "image",
+        "n_observations": 165,
+        "missingness": 0,
+        "independent_of_model_prediction": "YES, same reasoning as grade_label -- never used in any loss term",
+        "category": "A_true_pathology_label"
+      }
+    ],
+    "morphology_surrogates_found": [
+      {"name": "gland n_pixels (area)", "source": "results_v2/anatomy_targets/stage4_gland_manifest.csv (frozen Stage 4 artifact, read-only reuse)", "level": "gland, aggregated to image (mean/median)", "independent_of_Q_target": "YES -- area is not part of the S_cov/phi_cov eigenvalue-ratio formula that defines the anatomical Q target; a genuinely separate morphology quantity", "category": "B_morphology_surrogate"},
+      {"name": "n_gland_instances per image", "source": "data_manifests/glas_manifest_stage3_finalized.csv (frozen, read-only)", "level": "image", "independent_of_Q_target": "YES -- a count, not an orientation/anisotropy quantity", "category": "B_morphology_surrogate"},
+      {"name": "n_connected_components / fragmented flag per gland, aggregated to image (fragmented-gland count)", "source": "results_v2/anatomy_targets/stage4_gland_manifest.csv (frozen, read-only)", "level": "gland, aggregated to image", "independent_of_Q_target": "YES -- a topological/segmentation-quality property, not an orientation quantity", "category": "B_morphology_surrogate"},
+      {"name": "S_cov / phi_cov per gland (and S_contour / phi_contour)", "source": "results_v2/anatomy_targets/stage4_gland_manifest.csv", "level": "gland", "independent_of_Q_target": "NO -- this IS the literal source of the anatomical Q target used throughout Stages 4/9/11. Any S_DL-vs-S_cov analysis would simply re-run Stage 11's Criterion B under a new label. NOT USED as a confound or endpoint in this stage's primary/morphology analyses -- explicitly excluded per instruction section 9/18."}
+    ],
+    "acquisition_variables_found": [
+      {"name": "patient ID", "source": "data/glas/Warwick_QU_Dataset/Grade.csv, column 'patient ID' -- NOT previously used anywhere in this project", "level": "patient (16 total across all 165 images; 12 distinct patients within the 80 testA+testB images)", "note": "CRITICAL CLUSTERING FINDING: 11 of 16 patients contribute images to more than one canonical split (including 2 patients -- IDs 3 and 7 -- who contribute images to BOTH testA and testB). Images are therefore NOT independent observations at the patient level. This is reported and addressed via a pre-specified patient-level robustness check (R1), not ignored.", "category": "C_acquisition_variable"},
+      {"name": "canonical_split, image_id, image dimensions", "source": "data_manifests/glas_manifest_stage3_finalized.csv", "category": "C_acquisition_variable, used for stratification/provenance only, not as an endpoint"}
+    ],
+    "explicitly_not_available": "No clinically-annotated variables beyond the two grade columns above exist anywhere in the GlaS distribution used by this project (verified by full-column inspection of Grade.csv, the only label source ever used by code/data_prep.py::find_label_csv). No lumen-specific measurements, no scanner metadata, no additional clinical covariates (age, sex, treatment, outcome) exist in this dataset."
+  },
+
+  "representation_variables": {
+    "source": "Frozen Stage 10 Model 3 checkpoint (results_v2/model3/checkpoints/checkpoint_final.pt), inference only, via the EXACT existing pipeline (code_v2/stage9_train_baselines.py::to_tensors/per_patch_scalar_qs, code_v2/stage11_geometric_validation.py::get_predictions) -- no retraining, no architecture change, no new representation invented.",
+    "quantities_used": [
+      {"name": "S_DL", "definition": "per-patch predicted order magnitude sqrt(q1_pred^2+q2_pred^2), masked-mean-reduced per patch exactly as in Stage 9/11, then averaged again across all patches within an image (unweighted mean over that image's valid patches) to form ONE value per image -- the natural unit for association with an image-level pathology/morphology variable"},
+      {"name": "phi_DL circular dispersion", "definition": "1 - |mean_over_patches(exp(i*2*phi_DL))| (circular variance of the mod-pi orientation angle across an image's valid patches, using the same doubled-angle head-tail-symmetric convention as nematic_math.py throughout this project). A derived STATISTIC of the existing phi_DL representation, not a new model output. High value = orientation varies a lot across the image's patches (low consistency); low value = patches agree on orientation."}
+    ],
+    "quantities_deliberately_excluded_as_primary_or_exploratory": [
+      {"name": "mean phi_DL itself (not dispersion)", "reason": "phi has no canonical zero reference that is meaningful to compare in aggregate ACROSS different images/glands (only relative/dispersion statistics are frame-independent) -- a population mean of an arbitrary-reference angle is not a scientifically meaningful quantity, so it is not tested at all (neither primary nor exploratory), rather than silently included and misinterpreted."},
+      {"name": "S_anat / phi_anat (the anatomical target itself)", "reason": "using this as either the representation variable or a confound would either duplicate Stage 11's Criterion B under a new label, or adjust for the very quantity the model is meant to predict -- excluded per instruction section 9/18."}
+    ]
+  },
+
+  "population_and_unit_of_analysis": {
+    "primary_population": "testA + testB pooled, 80 canonical held-out images (1470+613=2083 patches, exactly Stage 11's population, no exclusions -- fragmented testB images retained)",
+    "unit_of_analysis_primary": "IMAGE (n=80) -- pathology/morphology labels are recorded at image level; patch-level pseudoreplication is explicitly avoided by aggregating S_DL and phi_DL-dispersion to one value per image before any statistical test",
+    "unit_of_analysis_robustness": "PATIENT (n=12 distinct patients within the 80 held-out images) -- reported as a pre-specified sensitivity check given the clustering finding above",
+    "testA_testB_reported_separately": "YES, in addition to the pooled analysis, exactly mirroring Stage 11's convention",
+    "reused_from_earlier_stages_read_only": [
+      "results_v2/baselines/_patch_cache/{testA,testB}.npz",
+      "results_v2/model3/checkpoints/checkpoint_final.pt",
+      "results_v2/anatomy_targets/stage4_gland_manifest.csv",
+      "data_manifests/glas_manifest_stage3_finalized.csv",
+      "data/glas/Warwick_QU_Dataset/Grade.csv"
+    ]
+  },
+
+  "primary_analyses": [
+    {
+      "id": "P1", "category": "pathology", "endpoint": "grade_label (binary: benign/malignant)",
+      "representation": "S_DL (image-level mean)",
+      "hypothesis": "Non-directional: does image-level mean S_DL differ between benign and malignant images? No direction (higher-in-malignant or higher-in-benign) is assumed before analysis.",
+      "test": "Mann-Whitney U (two-sided)", "effect_size": "Cohen's d (and Glass's Delta using benign as reference group, for consistency with this project's established effect-size convention)",
+      "ci": "bootstrap 95% CI on the difference of group means, resampled at the IMAGE level, n_boot=2000, seed=42",
+      "unit_of_analysis": "image (n=80, pooled; also testA n=60 and testB n=20 separately)"
+    },
+    {
+      "id": "P2", "category": "pathology", "endpoint": "ordinal_grade (5-level, coded 0=healthy..4=poorly differentiated)",
+      "representation": "S_DL (image-level mean)",
+      "hypothesis": "Non-directional: is image-level mean S_DL associated (monotonically) with ordinal histological grade?",
+      "test": "Spearman rank correlation (two-sided)", "effect_size": "Spearman's rho",
+      "ci": "bootstrap 95% CI, image-level resampling, n_boot=2000, seed=42",
+      "unit_of_analysis": "image (n=80 pooled; testA/testB separately)"
+    },
+    {
+      "id": "P3", "category": "pathology", "endpoint": "grade_label (binary)",
+      "representation": "phi_DL circular dispersion (image-level)",
+      "hypothesis": "Non-directional: does within-image orientation consistency differ between benign and malignant images?",
+      "test": "Mann-Whitney U (two-sided)", "effect_size": "Cohen's d",
+      "ci": "bootstrap 95% CI, image-level resampling, n_boot=2000, seed=42",
+      "unit_of_analysis": "image (n=80 pooled; testA/testB separately)"
+    },
+    {
+      "id": "P4", "category": "pathology", "endpoint": "ordinal_grade (5-level)",
+      "representation": "phi_DL circular dispersion (image-level)",
+      "hypothesis": "Non-directional: is within-image orientation consistency associated with ordinal grade?",
+      "test": "Spearman rank correlation (two-sided)", "effect_size": "Spearman's rho",
+      "ci": "bootstrap 95% CI, image-level resampling, n_boot=2000, seed=42",
+      "unit_of_analysis": "image (n=80 pooled; testA/testB separately)"
+    }
+  ],
+  "morphology_analyses": [
+    {
+      "id": "M1", "category": "morphology", "endpoint": "mean gland area (n_pixels) per image",
+      "representation": "S_DL (image-level mean)", "test": "Spearman rank correlation (two-sided)",
+      "unit_of_analysis": "image (n=80 pooled)"
+    },
+    {
+      "id": "M2", "category": "morphology", "endpoint": "n_gland_instances per image",
+      "representation": "S_DL (image-level mean)", "test": "Spearman rank correlation (two-sided)",
+      "unit_of_analysis": "image (n=80 pooled)"
+    }
+  ],
+  "confounding_analysis": [
+    {
+      "id": "C1", "category": "confound_adjustment",
+      "description": "OLS regression of image-level mean S_DL on grade_label (0/1) + mean gland area (covariate), examining whether grade_label's coefficient/significance changes materially after adjusting for area. Run regardless of P1's outcome (pre-specified unconditionally, not triggered by seeing P1's result).",
+      "unit_of_analysis": "image (n=80 pooled)"
+    }
+  ],
+  "robustness_analyses": [
+    {
+      "id": "R1", "category": "robustness",
+      "description": "Patient-level aggregation sensitivity check: re-aggregate S_DL to one value per PATIENT (mean over that patient's images' image-level S_DL values) within testA+testB (n=12 distinct patients), and re-examine P1's grade_label association at this coarser unit. Reported descriptively (Mann-Whitney U + effect size where n permits), with explicit acknowledgment that n=12 is likely underpowered -- this is a sensitivity/transparency check, not a claim of a definitive patient-level result.",
+      "unit_of_analysis": "patient (n=12)"
+    }
+  ],
+  "exploratory_analyses_policy": "Any analysis not listed above that is run after the primary/morphology/confound/robustness results are seen MUST be labeled EXPLORATORY in every output artifact and MUST NOT be used to justify a primary conclusion.",
+
+  "multiple_testing": {
+    "primary_family": ["P1", "P2", "P3", "P4"],
+    "correction": "Holm-Bonferroni, applied across exactly these 4 pre-specified primary pathology tests (pooled testA+testB results only; testA/testB-separate and morphology/confound/robustness results are reported with raw p-values, explicitly labeled as not part of the corrected family, per instruction section 11's 'small number of explicitly pre-specified hypotheses' allowance)."
+  },
+
+  "explicit_prohibitions_restated": [
+    "No directional hypothesis (e.g. 'malignant -> higher S') is assumed anywhere in this matrix -- all tests are two-sided.",
+    "No image, gland, or patch is excluded beyond what Stage 9's original >=10% valid-coverage patch-inclusion rule already applied (frozen, unchanged, applied identically to every prior stage).",
+    "No statistical test is chosen after seeing which produces the strongest result -- all tests above are fixed before any S_DL/phi_DL computation in this stage.",
+    "S_anat/phi_anat and S_cov/phi_cov are never used as a representation variable, endpoint, or confound in this stage."
+  ]
+}

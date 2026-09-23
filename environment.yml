@@ -1,0 +1,18 @@
+# Not a conda environment -- this project uses a plain venv at G:\MDPI Symmetry\venv
+# (Python 3.11.8, Windows). This file documents the equivalent conda-style spec for
+# reproducibility purposes; use requirements-lock.txt (pip freeze) as the authoritative
+# source of exact installed versions.
+name: mdpi-symmetry-v2
+python_version: "3.11.8"
+platform: "Windows-10-10.0.26200-SP0"
+gpu: "NVIDIA GeForce RTX 3050 6GB Laptop GPU"
+cuda_version: "12.4"
+torch_version: "2.6.0+cu124"
+escnn_version: "1.0.11"
+notes: >
+  escnn's native-extension dependency (lie-learn) required a manual rebuild against
+  a portable MinGW-w64 toolchain on this Windows machine, and py3nj (SO(3)-only,
+  unused for the p8m/D8 planar group this project uses) was intentionally omitted --
+  see code/ pilot session notes. requirements-lock.txt is the exact pip freeze of the
+  working venv and is the source of truth for reproduction.
+install_reference: requirements-lock.txt

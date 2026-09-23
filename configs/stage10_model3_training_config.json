@@ -1,0 +1,52 @@
+{
+  "stage": "STAGE 10 - final Model 3 training",
+  "written_before_training": true,
+  "do_not_edit_after_seeing_results": true,
+  "configuration_source_note": {
+    "finding": "No dedicated Stage 10 configuration file existed in the repository at the start of this stage (verified: `find . -iname '*stage10*'` returned nothing before this stage).",
+    "resolution": "Treating configs/stage9_baseline_training_config.json as the authoritative Stage 10 configuration, REUSED (not reinvented) for Model 3.",
+    "justification": [
+      "That file's hyperparameters (loss structure and lambda_Q, optimizer, lr, batch size, max epochs, patience, seed, dev-based early-stopping mechanism, train_inner/dev split methodology) are model-agnostic -- nothing in it is Plain-CNN- or Model-2-specific.",
+      "It was already applied uniformly to two different architectures (Plain CNN, Model 2) in Stage 9 for a fair three-way comparison; using a DIFFERENT configuration for Model 3 would introduce an unexplained asymmetry and would itself be a more scientifically questionable choice than reuse.",
+      "This resolves the Stage 10 instruction's checkpoint-selection requirement as well: Stage 9's config already specifies an independent, non-test-set validation mechanism (dev-set L_total, from the train_inner/dev partition carved from canonical TRAIN only) -- no Level 4 ambiguity, no invented mechanism."
+    ],
+    "checksum_of_source_file_at_time_of_reuse": "d0373142041042a417deea080a172792 (configs/stage9_baseline_training_config.json)"
+  },
+  "model": {
+    "class": "Model3TypedEquivariant (code_v2/model3_typed_equivariant.py, UNCHANGED from Stage 7)",
+    "representation": "D8.irrep(1,2), unchanged",
+    "c1": 8, "c2": 8, "n_classes": 2
+  },
+  "loss": {
+    "file": "code_v2/model3_loss.py, UNCHANGED from Stage 7",
+    "formula": "L_total = L_class + lambda_Q * L_Q",
+    "lambda_Q": 1.0
+  },
+  "data": {
+    "canonical_train_images": 85,
+    "train_inner_images": 68,
+    "dev_images": 17,
+    "held_out_testA_images": 60,
+    "held_out_testB_images": 20,
+    "testA_testB_used_this_stage": false,
+    "patch_cache_reused_from_stage9": "results_v2/baselines/_patch_cache/{train_inner,dev}.npz -- SAME exact patches used for Plain CNN and Model 2 in Stage 9, not regenerated, for apples-to-apples comparability"
+  },
+  "optimizer": {"type": "Adam", "lr": 1e-3},
+  "training_protocol": {
+    "batch_size": 32,
+    "max_epochs": 40,
+    "early_stopping_patience": 6,
+    "early_stopping_metric": "dev set L_total (never testA/testB)",
+    "seed": 42,
+    "multi_seed_protocol": "none specified anywhere in the project; single seed (42) used and reported, per instruction \"if only one seed is pre-specified, use that seed and report it\""
+  },
+  "environment": {
+    "python": "3.11.8", "torch": "2.6.0+cu124", "escnn": "1.0.11",
+    "device": "cuda (RTX 3050 6GB)", "dtype": "float32"
+  },
+  "explicitly_not_done_this_stage": [
+    "no testA/testB evaluation (deferred to Stage 11 per instruction)",
+    "no hyperparameter/architecture/loss-weight/threshold/augmentation search",
+    "no checkpoint selection using held-out data"
+  ]
+}

@@ -1,0 +1,160 @@
+{
+  "stage": "STAGE 14 - Controlled Ablation Study",
+  "frozen_before_any_training": true,
+  "shared_protocol_unless_stated_otherwise": {
+    "canonical_train_split": "85 GlaS train images (verified: train=85, testA=60, testB=20, asserted before any data load)",
+    "patches": "results_v2/baselines/_patch_cache/{train_inner,dev}.npz -- the exact Stage 9/10 cached patches (1816 train_inner / 433 dev), never regenerated",
+    "preprocessing": "identical to Stage 9/10 (rgb/255.0, permute to NCHW)",
+    "optimizer": "Adam, lr=1e-3",
+    "batch_size": 32,
+    "max_epochs": 40,
+    "patience": 6,
+    "seed": 42,
+    "checkpoint_rule": "lowest weighted dev total-loss (dev_loss < best_dev_loss - 1e-5), same early-stopping mechanism as Stage 10 -- each experiment's own loss definition (which may exclude L_class or L_Q per that experiment's lambda values) is used consistently for both training and checkpoint selection, which is a natural, undeviating application of Stage 10's rule, not a changed rule",
+    "loss_form": "total = lambda_class * L_class + lambda_Q * L_Q (L_class = cross-entropy, L_Q = masked_q_loss from model3_loss.py, both reused unmodified; lambda_class=1 by construction in Stage 9/10, made an explicit parameter here only to support A4)",
+    "held_out_evaluation": "testA (60 images, 1470 patches) and testB (20 images, 613 patches), evaluated separately AND pooled (matching the frozen Stage 11 population/metric definitions), reported for context/diagnosis only -- see 'criterion_status_of_ablation_results' below",
+    "test_set_protection": "testA/testB never opened during training for any experiment; opened only in the designated held-out evaluation phase"
+  },
+  "criterion_status_of_ablation_results": "Ablation results compared against the frozen preregistered thresholds (A/B/C in preregistered_thresholds_v2.json, D in the same file) are DIAGNOSTIC/EXPLANATORY ONLY. No ablation's pass/fail against these thresholds constitutes a new official Criterion A/B/C/D verdict. The only official verdicts remain Stage 11 (HOLD) and Stage 12 (HOLD), both unchanged by this stage.",
+  "experiments": [
+    {
+      "id": "A0",
+      "name": "Full Model 3 reference",
+      "scientific_question": "What is the reference condition against which every ablation is compared?",
+      "hypothesis": "N/A (reference condition, not a hypothesis test)",
+      "model": "Model3TypedEquivariant (code_v2/model3_typed_equivariant.py), unmodified",
+      "modification": "NONE -- this experiment IS the existing frozen Stage 10 artifact",
+      "resolution": "Reuses the EXACT frozen Stage 10 checkpoint (results_v2/model3/checkpoints/checkpoint_final.pt) verbatim rather than retraining a nominally-identical duplicate. This is a stricter reproduction of 'the exact Stage 10 configuration' than a fresh run with the same seed could guarantee (removes any residual nondeterminism from cuDNN/BLAS ordering), and avoids wasting compute on a redundant run. No new training occurs for A0.",
+      "unchanged_components": "everything",
+      "lambda_class": 1.0,
+      "lambda_Q": 1.0,
+      "seed": 42,
+      "checkpoint_path": "results_v2/model3/checkpoints/checkpoint_final.pt",
+      "primary_metrics": ["testA/testB accuracy, AUROC, F1, precision, recall", "pooled+per-split angular correspondence, Glass's delta, order-magnitude r + 95% CI, tensor similarity D_Q"],
+      "secondary_metrics": ["training loss curves (from Stage 10's existing history)"],
+      "interpretation_limits": "Reference condition only; not itself a hypothesis test."
+    },
+    {
+      "id": "A1",
+      "name": "No Q supervision",
+      "scientific_question": "Does removing Q/orientation supervision change classification behavior or representation learning (as measured by what remains observable, i.e. classification)?",
+      "hypothesis": "If Q supervision competes with or constrains the shared representation, removing it may change classification loss/accuracy dynamics relative to A0.",
+      "model": "Model3TypedEquivariant, architecture UNCHANGED",
+      "modification": "lambda_Q = 0 (Q loss term removed from the training objective; Q head still exists and still runs forward, but receives no gradient signal since it does not contribute to the loss)",
+      "unchanged_components": "architecture, preprocessing, data, optimizer, lr, batch size, budget, seed, checkpoint rule",
+      "lambda_class": 1.0,
+      "lambda_Q": 0.0,
+      "seed": 42,
+      "checkpoint_path": "results_v2/validation/stage14/A1_no_q/checkpoint_final.pt",
+      "primary_metrics": ["testA/testB accuracy, AUROC, F1, precision, recall (classification only -- Q metrics reported for context but the Q head received no training signal)"],
+      "secondary_metrics": ["Q-head output magnitude/geometric metrics -- reported as a DESCRIPTIVE control (expected near-random, since untrained), not as evidence of anatomical learning"],
+      "interpretation_limits": "Can answer whether removing Q supervision changes classification behavior. Cannot prove Q supervision is the sole or primary cause of Stage 11's failure -- other factors (A3-A7) are separately controlled."
+    },
+    {
+      "id": "A2",
+      "name": "Classification-only control (DROPPED -- mathematically redundant with A1)",
+      "scientific_question": "N/A -- redundancy determination",
+      "resolution": "Under this project's loss formulation (total = lambda_class*L_class + lambda_Q*L_Q, with the Q head architecturally independent of the classification head -- see model3_typed_equivariant.py's forward(), where q_head branches directly off the shared representation and never feeds into logits), a 'classification-only control with identical architecture' is achieved by exactly one operation: lambda_Q=0. This is IDENTICAL to A1. Per instruction section 4/A2, A2 is therefore not run as a separate experiment; A1 is retained as the single representative of this condition. No duplicate directory (A2_*) is created.",
+      "status": "REDUNDANT_WITH_A1_NOT_EXECUTED"
+    },
+    {
+      "id": "A3",
+      "name": "Q-dominant / classification-reduced",
+      "scientific_question": "Does the Stage 10 Q-loss plateau (L_Q ~0.345, observed in Stage 10) reflect competition between classification and Q objectives for the shared representation?",
+      "hypothesis": "If classification competes with Q for representational capacity/gradient signal, substantially up-weighting L_Q relative to L_class should reduce the Q-loss plateau relative to A0.",
+      "model": "Model3TypedEquivariant, architecture UNCHANGED",
+      "modification": "lambda_Q = 10.0 (one order of magnitude above the Stage 9/10 baseline of 1.0)",
+      "weight_determination": "No alternative lambda_Q value exists anywhere in this project's prior history (verified by exhaustive grep across code/ and code_v2/ -- lambda_Q=1.0 is the only value ever used, in model3_loss.py, stage9_train_baselines.py, and stage10_train_model3.py). Per instruction section 4/A3, this required a pre-specified, non-arbitrary, non-outcome-motivated resolution BEFORE execution rather than either inventing a value after seeing results or stopping the whole stage over one sub-experiment. Resolution: a single order-of-magnitude increase (10x, i.e. lambda_Q=10.0) is used -- the standard, minimal, structurally-motivated step for a 'substantially increases relative contribution' sensitivity probe, decided here, before any A0/A1/A3 result is observed or compared, and not tuned toward a favorable outcome in either direction.",
+      "unchanged_components": "architecture, preprocessing, data, optimizer, lr, batch size, budget, seed, checkpoint rule",
+      "lambda_class": 1.0,
+      "lambda_Q": 10.0,
+      "seed": 42,
+      "checkpoint_path": "results_v2/validation/stage14/A3_q_dominant/checkpoint_final.pt",
+      "primary_metrics": ["Q-loss trajectory vs A0", "testA/testB geometric metrics vs A0", "testA/testB classification accuracy/AUROC vs A0 (to check whether down-weighted classification degrades)"],
+      "secondary_metrics": ["training loss curves"],
+      "interpretation_limits": "Can answer whether a 10x Q-weight change moves the Q-loss plateau or geometric metrics relative to A0. Cannot prove the EXACT competition mechanism, and cannot rule out that an even larger or smaller weight would behave differently (no weight sweep is performed, per the explicit prohibition on grid search)."
+    },
+    {
+      "id": "A4",
+      "name": "Q-only control",
+      "scientific_question": "Can the network learn the anatomical Q field when classification is not competing for the shared representation at all?",
+      "hypothesis": "If classification-task dominance limits Q learning, removing classification entirely should improve Q-related geometric metrics relative to A0.",
+      "model": "Model3TypedEquivariant, architecture UNCHANGED (classifier head still constructed and still runs forward for shape/API consistency, but excluded from the loss)",
+      "modification": "lambda_class = 0 (classification loss term removed)",
+      "feasibility": "Mathematically valid for this architecture: the classifier and q_head are both independent linear/conv branches off the same shared representation (block2 output); removing L_class does not break any data flow or shape, it only removes one gradient source. No artificial architecture change was required.",
+      "unchanged_components": "architecture, preprocessing, data, optimizer, lr, batch size, budget, seed, checkpoint rule",
+      "lambda_class": 0.0,
+      "lambda_Q": 1.0,
+      "seed": 42,
+      "checkpoint_path": "results_v2/validation/stage14/A4_q_only/checkpoint_final.pt",
+      "primary_metrics": ["testA/testB geometric metrics vs A0 (angular correspondence, Glass's delta, order-magnitude r+CI, tensor similarity)", "Q-loss trajectory vs A0"],
+      "secondary_metrics": ["classification accuracy/AUROC (expected near chance since untrained -- reported for completeness, not as a failure of this experiment)"],
+      "interpretation_limits": "Can answer whether removing classification competition changes Q-related geometric metrics. Cannot prove that classification competition is the ONLY limiting factor -- representation capacity, target learnability, and measurement choices are separately controlled in A5-A7."
+    },
+    {
+      "id": "A5",
+      "name": "Non-equivariant architectural control",
+      "scientific_question": "Can the observed Stage 10/11/12 behavior reasonably be attributed to the equivariant formulation specifically, rather than to generic small-CNN learning under this protocol?",
+      "hypothesis": "If the equivariant representation itself (not merely 'a small CNN of this capacity trained this way') is responsible for the observed geometric-correspondence failure, a parameter-matched non-equivariant CNN trained identically should behave differently (better or worse) on the same metrics.",
+      "model": "PlainCNNDualHead (code_v2/baseline_cnn_dualhead.py), an EXISTING, already-used architecture (Stage 9's plain_cnn baseline used the same class with c1=c2=64) -- reused unmodified, only its channel-width arguments changed",
+      "modification": "c1=38, c2=9 (instead of Stage 9's c1=64,c2=64) -- chosen by an exhaustive, deterministic search over c1,c2 in [1,40) minimizing |param_count(c1,c2) - 11674| (Model 3's exact parameter count), BEFORE any A5 training run. Result: PlainCNNDualHead(c1=38,c2=9) has 11676 parameters vs Model 3's 11674 (difference of 2 parameters, 0.017%) -- the closest achievable match at this architecture's granularity. Search script and result are recorded verbatim in this file; the search was run once, deterministically, with no result-dependent adjustment.",
+      "unchanged_components": "preprocessing, data, target, optimizer, lr, batch size, budget, loss form, checkpoint rule, seed",
+      "intended_scientific_difference": "Equivariant (D8 regular-representation R2Conv blocks + typed D8.irrep(1,2) Q head) vs ordinary (non-equivariant Conv2d) convolutional blocks + ordinary Conv2d Q head, at matched parameter count and matched training protocol. NOT parameter-matched exactly at the per-layer level (the equivariant architecture's basis-constrained R2Conv layers have a different parameter-to-channel-count relationship than ordinary Conv2d, so channel counts necessarily differ between the two architectures even though total parameter counts are matched) -- this residual architectural difference (channel width, receptive field composition) is acknowledged explicitly in the interpretation limits below, not hidden.",
+      "lambda_class": 1.0,
+      "lambda_Q": 1.0,
+      "seed": 42,
+      "checkpoint_path": "results_v2/validation/stage14/A5_plain_cnn_control/checkpoint_final.pt",
+      "primary_metrics": ["testA/testB geometric metrics vs A0", "testA/testB classification accuracy/AUROC/F1/precision/recall vs A0"],
+      "secondary_metrics": ["training loss curves vs A0"],
+      "interpretation_limits": "Can answer whether the observed geometric-correspondence behavior differs between the equivariant Model 3 and a matched-capacity non-equivariant CNN under an identical protocol. CANNOT prove that equivariance ALONE causes every observed difference, since channel width/receptive-field composition necessarily differ between the two architectures even at matched total parameter count (see 'intended_scientific_difference' above) -- this is an unavoidable residual confound of any parameter-matched-but-structurally-different comparison, stated here rather than concealed."
+    },
+    {
+      "id": "A6",
+      "name": "Output/spatial representation control (rotation-consistency spatial-reduction diagnostic)",
+      "scientific_question": "Is Stage 12's center-pixel scalar reduction masking useful spatial information, i.e. is Stage 12's Criterion D failure a measurement-choice artifact rather than a property of the underlying dense Q field?",
+      "hypothesis": "If center-pixel extraction discards informative spatial structure, an alternative reduction that aggregates over more of the dense field may show materially different (typically lower) rotation-consistency error than the center-pixel measurement.",
+      "model": "Model3TypedEquivariant -- uses the EXACT SAME frozen checkpoint as A0/Stage 10 (results_v2/model3/checkpoints/checkpoint_final.pt). No retraining.",
+      "modification": "NONE to the model. Only the SCALAR REDUCTION applied to the model's existing dense (B,2,H2,W2) output is changed, evaluated using the exact same rotation protocol, angle grid, frozen real-H&E floor thresholds, and pooled testA+testB population as Stage 12.",
+      "pre_specified_reduction_set": [
+        {
+          "name": "R1_full_spatial_mean",
+          "definition": "Unweighted mean of q_dense over ALL (H2 x W2) spatial locations, per patch. No anatomical mask is available or applicable to a pure model-output rotation-consistency measurement (unlike Stage 11's target-comparison metrics), so this is the natural 'no masking' alternative to a single center pixel.",
+          "rationale": "Aggregates the entire predicted field rather than a single location; most direct test of whether spatial averaging recovers rotation structure invisible at a single pixel."
+        },
+        {
+          "name": "R2_fixed_original_valid_mask_mean",
+          "definition": "Mean of q_dense over the SAME spatial locations at every rotation angle: the resolution-matched anatomical valid-pixel mask of the ORIGINAL (angle=0) patch (via model3_loss.py::downsample_target_for_loss's existing all-4-valid rule), reused unrotated as a fixed region-of-interest across all 9 non-zero angles. This deliberately does NOT re-rotate the mask (which would require a new, undefined resampling convention for a binary mask); it instead asks whether restricting the reduction to the gland-relevant region identified in the unrotated frame changes the measured consistency, acknowledged explicitly as an approximation that becomes progressively less spatially aligned with the rotated content as the rotation angle grows.",
+          "rationale": "Ties the reduction to the same anatomically-meaningful region used throughout Stage 4/9/11's masked-mean convention, as the second pre-specified, clearly-scoped alternative."
+        }
+      ],
+      "prohibition": "No other reduction is computed or reported for A6. Neither reduction is chosen or reported selectively after seeing results -- both are always reported together.",
+      "unchanged_components": "checkpoint, rotation angle grid (Stage 12's frozen 10-angle list), rotation sign convention, frozen per-angle local_thresholds, pooled testA+testB population",
+      "seed": "N/A (deterministic inference)",
+      "checkpoint_path": "results_v2/model3/checkpoints/checkpoint_final.pt (frozen, unchanged)",
+      "primary_metrics": ["per-angle model_error under R1 and R2, compared descriptively against Stage 12's center-pixel result and the frozen Criterion D thresholds"],
+      "secondary_metrics": ["S-invariance and phi-deviation diagnostics under R1/R2, mirroring Stage 12's additional_checks"],
+      "interpretation_limits": "Can answer whether center-pixel measurement understates or overstates rotation consistency relative to two specific, pre-specified spatial-aggregation alternatives. CANNOT replace or override Stage 12's Criterion D verdict (which remains HOLD, using center-pixel, as frozen) and does not itself constitute a new criterion decision."
+    },
+    {
+      "id": "A7",
+      "name": "Target-learnability control",
+      "scientific_question": "Does the anatomical Q target contain sufficient learnable signal from the available image information, independent of Model 3's specific architecture?",
+      "hypothesis": "If the target itself is intrinsically hard to predict from H&E texture (e.g. requires context beyond a 128x128 patch, or the classical-oracle-derived target is inherently noisy), even a higher-capacity, differently-structured reference network should show similarly weak geometric correspondence.",
+      "resolution": "No dedicated, classification-free, target-only reference architecture exists in this repository. Per instruction section 4/A7 ('If an appropriate target-learnability control already exists in the repository, reuse it... If none exists and constructing one would require a new scientific design, DO NOT improvise it after seeing results. Document the limitation.'), this is resolved BEFORE execution, not improvised afterward, by reusing TWO existing/already-scoped artifacts as joint, imperfect evidence rather than constructing a new bespoke architecture: (1) Stage 9's already-frozen PlainCNNDualHead baseline (c1=64, c2=64, i.e. 16x/7x the channel width of Model 3 and A5 respectively, jointly trained with the same dual-loss structure) -- its EXISTING, UNCHANGED held-out geometric_metrics (results_v2/baselines/plain_cnn/held_out_{testA,testB}_results.json) are reported as a higher-capacity, non-equivariant reference under joint classification+Q training; and (2) this stage's own A4 (Q-only Model 3, no classification competition) as a second, complementary data point with classification competition removed. Neither is a clean, dedicated target-learnability control in isolation (Stage 9's plain_cnn still has classification competing for the representation, exactly the confound A7 asks about); this is documented explicitly as a genuine limitation of this stage's evidence on target learnability, not resolved by inventing a new architecture after seeing A0-A6 results.",
+      "unchanged_components": "N/A -- no new training",
+      "lambda_class": "N/A (Stage 9 plain_cnn: 1.0, jointly trained; A4: 0.0, see A4)",
+      "lambda_Q": "N/A (Stage 9 plain_cnn: 1.0; A4: 1.0, see A4)",
+      "seed": "N/A (reuses existing frozen artifacts + A4)",
+      "checkpoint_path": "results_v2/baselines/plain_cnn/checkpoint_final.pt (frozen Stage 9 artifact, reused read-only) + A4's own checkpoint",
+      "primary_metrics": ["Stage 9 plain_cnn's existing testA/testB geometric_metrics (angular correspondence, order-magnitude r, tensor similarity D_Q) reported verbatim, unmodified", "A4's geometric metrics (see A4)"],
+      "secondary_metrics": [],
+      "interpretation_limits": "Cannot cleanly isolate 'target learnability' from 'architecture' or 'classification competition' given no dedicated control exists. If BOTH a much-higher-capacity non-equivariant network under joint training (Stage 9 plain_cnn) AND a classification-free Model 3 (A4) show similarly weak geometric correspondence, that is suggestive (not conclusive) evidence that target difficulty, rather than Model 3's specific architecture or classification competition alone, is a contributing factor. This stage does not resolve target learnability definitively; a dedicated future experiment (e.g. training directly on oracle S,phi with a large non-equivariant network and no classification head at all) is noted as a possible follow-up, not executed here."
+    }
+  ],
+  "parameter_matching_search_record": {
+    "objective": "min |77*c1 + 25*c1*c2 + 22*c2 + 2 - 11674| over integer c1,c2 in [1,40)",
+    "formula_source": "PlainCNNDualHead parameter count: Conv2d(3,c1,5,bias=False)=75*c1; BatchNorm2d(c1)=2*c1; Conv2d(c1,c2,5,bias=False)=25*c1*c2; BatchNorm2d(c2)=2*c2; q_head Conv2d(c2,2,3,bias=False)=18*c2; classifier Linear(c2,2)=2*c2+2",
+    "result": {"c1": 38, "c2": 9, "param_count": 11676, "target": 11674, "abs_diff": 2},
+    "verified_by_instantiation": true
+  }
+}

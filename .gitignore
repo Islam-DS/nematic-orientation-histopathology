@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# Environments
+venv/
+.venv/
+env/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+*.swp
+*~
+.vscode/
+.idea/
+
+# This project's own local outputs, if the pipeline is re-run here:
+# raw datasets (never commit these; see README.md Section 3 for access/license terms)
+data/
+# generated results, checkpoints, logs, and caches from re-running the pipeline
+results/
+results_v2/
+checkpoints/
+logs/
+*.npz
+*.pt
+*.pth
+
+# LaTeX build byproducts, if you rebuild the manuscript locally
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+build/

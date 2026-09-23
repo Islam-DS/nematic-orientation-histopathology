@@ -1,0 +1,52 @@
+{
+  "stage": "STAGE 16 - Multi-Scale Orientation-Tensor Analysis",
+  "frozen_before_any_result": true,
+  "purpose": "Diagnose whether the spatial scale at which the frozen, unmodified Model 3 dense Q field is summarized affects (a) anatomical correspondence (Stage 11-style) and (b) rotation consistency (Stage 12-style). Purely diagnostic -- does not alter Stage 11/12's frozen official verdicts, does not retrain or modify Model 3, does not select or promote a 'best' scale.",
+
+  "frozen_artifacts_used_read_only": {
+    "checkpoint": {"path": "results_v2/model3/checkpoints/checkpoint_final.pt", "md5": "5495ddeba84d3169c2a6b63ad22fbdcb"},
+    "preregistration": {"path": "results_v2/phase2/preregistered_thresholds_v2.json", "md5": "4d68f3877d2cc0ec50aac19629182740"},
+    "testA_cache": {"path": "results_v2/baselines/_patch_cache/testA.npz", "md5": "ad34ac1d4ae1d7c2232bc1ac752a8c5f"},
+    "testB_cache": {"path": "results_v2/baselines/_patch_cache/testB.npz", "md5": "f16f9af7e195d22dfe6052ef54b29787"},
+    "note": "Stage 4 anatomical target fields are not re-read directly in this stage -- the anatomical target (q1_t, q2_t, valid) is obtained via the SAME resolution-matched, downsampled representation already produced by model3_loss.py::downsample_target_for_loss inside the existing, unmodified Stage 11 get_predictions() pipeline, exactly as Stage 11 itself used it. No new target generation occurs."
+  },
+
+  "the_dense_prediction_is_computed_once": "The frozen checkpoint's dense (B,2,H2,W2) q output is computed exactly once per population (angle=0 for the anatomy analysis; once per rotation angle for the rotation analysis) via the unmodified Stage 9/11 inference pipeline. All 6 scales are then produced by applying 6 different DETERMINISTIC, FIXED spatial reductions to that SAME dense array -- no additional model forward passes are introduced per scale, and no scale involves any change to the model, checkpoint, or preprocessing.",
+
+  "scales": [
+    {"scale_id": 0, "name": "center_pixel", "window": "1x1, centered at (H2//2, W2//2) = (32,32) of the 64x64 dense field", "aggregation_rule": "no averaging: q1,q2 at the single center pixel", "boundary_rule": "N/A (single interior pixel, no boundary case possible for a 64x64 field)", "reproduces": "Stage 12's exact center-pixel rotation-consistency measurement (rotation analysis only); this is a NEW measurement for the anatomy analysis (Stage 11 never used center-pixel)."},
+    {"scale_id": 1, "name": "3x3_mean", "window": "3x3 centered at (32,32), rows/cols [31:34)", "aggregation_rule": "unweighted arithmetic mean of q1 and q2 independently over the 9 pixels, exactly matching the vector-space averaging convention already used throughout this project (per_patch_scalar_qs, Stage 12/14) -- S and phi are derived AFTER averaging (q1,q2), never by averaging S or phi directly", "boundary_rule": "window fully interior for a 64x64 field with an 8-16px margin at this size; no clipping is triggered, but the documented fallback rule (had it been needed) is: clip the window to the array bounds and average over the clipped (in-bounds) pixels only"},
+    {"scale_id": 2, "name": "5x5_mean", "window": "5x5 centered at (32,32), rows/cols [30:35)", "aggregation_rule": "same vector-space mean as scale 1", "boundary_rule": "same fallback rule as scale 1; not triggered"},
+    {"scale_id": 3, "name": "9x9_mean", "window": "9x9 centered at (32,32), rows/cols [28:37)", "aggregation_rule": "same vector-space mean as scale 1", "boundary_rule": "same fallback rule as scale 1; not triggered"},
+    {"scale_id": 4, "name": "17x17_mean", "window": "17x17 centered at (32,32), rows/cols [24:41)", "aggregation_rule": "same vector-space mean as scale 1", "boundary_rule": "same fallback rule as scale 1; not triggered (17x17 still fits with an 8px margin inside the 64x64 field)"},
+    {"scale_id": 5, "name": "full_field", "window": "the ENTIRE 64x64 dense field",
+      "aggregation_rule_anatomy_analysis": "'full VALID-field spatial mean' -- vector-space mean of (q1,q2) over exactly the anatomically-valid, resolution-matched pixels of that patch (model3_loss.py's existing all-4-valid downsampling rule) -- this is IDENTICAL, unchanged, to Stage 11's original per-patch reduction (per_patch_scalar_qs). Included here specifically so Scale 5's anatomy numbers reproduce Stage 11's original result exactly, as an internal consistency check.",
+      "aggregation_rule_rotation_analysis": "'full-field spatial mean' -- vector-space mean of (q1,q2) over ALL 64x64 pixels, UNMASKED (no anatomical-validity concept applies to a pure rotation-consistency measurement, exactly as in Stage 14's A6 diagnostic R1). Included here specifically so Scale 5's rotation numbers reproduce Stage 14/A6's R1 result exactly, as an internal consistency check.",
+      "boundary_rule": "N/A, uses the entire field"}
+  ],
+
+  "explicit_asymmetry_documented_before_execution": "Scale 5 is named 'full field' in both analyses but its precise definition differs by analysis type (masked-valid for anatomy, unmasked for rotation) because the two analyses have fundamentally different validity concepts (anatomical target validity vs. no-target-exists-for-a-rotated-image). Scales 0-4 use NO anatomical masking in either analysis: for the anatomy analysis, scales 0-4 are unmasked windowed means of the prediction ONLY, compared against the SAME FIXED anatomical target reduction used throughout (full-valid-mean, i.e. Stage 11's target definition, never itself re-scaled) -- only the predicted side varies by scale, not the target side. A patch is included in the anatomy analysis at every scale using the SAME inclusion rule as Stage 11 (at least one valid target pixel anywhere in the patch), so n_patches is identical across scales 0-4 and 5; this decouples the aggregation WINDOW (a pure property of the model's output grid) from the validity-based INCLUSION rule (a pure property of the target), avoiding a circular or moving-target confound.",
+
+  "anatomical_comparison_metrics": "Identical formulas to Stage 11's compute_full_metrics (angular correspondence with Glass's Delta, order-magnitude Pearson/Spearman r with bootstrap 95% CI, tensor similarity D_Q with permutation p) -- reused unmodified, applied once per scale to that scale's (S_pred, phi_pred). These are diagnostic measurements only, NOT new preregistered primary endpoints, and do not alter Stage 11's official Criteria A/B/C verdict.",
+
+  "rotation_consistency_protocol": "Identical to Stage 12 in every respect except the scalar reduction: same pooled testA+testB population (2083 patches, no exclusions), same 10-angle grid [0,15,30,37,45,60,90,123,150,173], same model rotation sign convention (skimage angle=+alpha_deg, mode='reflect', order=1), same normalized_equivariance_error formula, same frozen per-angle local_thresholds from preregistered_thresholds_v2.json. Only the (q1,q2) scalar extracted from the dense field at each angle is varied across the 6 frozen scales. Results are reported as pass/fail AGAINST THE ORIGINAL FROZEN STAGE 12 THRESHOLDS for descriptive comparison only -- this is explicitly NOT a new official Criterion D decision at any scale.",
+
+  "population": {
+    "primary": "pooled testA+testB, 80 images, 2083 patches (identical to Stages 11/12/14, no exclusions, fragmented testB images retained)",
+    "reported_separately": ["testA (60 images, 1470 patches)", "testB (20 images, 613 patches)"],
+    "unit_of_analysis": "patch for the underlying per-patch statistics (matching Stage 11's own unit of analysis for its bootstrap/permutation procedures, reused unmodified); image count and patch count reported at every scale per instruction section 9"
+  },
+
+  "statistical_inference": {
+    "bootstrap_seed": 42, "bootstrap_n": 2000,
+    "note": "The 6 scales are NOT treated as 6 independent hypotheses requiring multiple-testing correction -- this is a descriptive diagnostic sweep over a single frozen, deterministic function of the same underlying dense prediction, not 6 independently-sampled experiments. No new significance threshold is defined for Stage 16; Stage 12's original >=7/9 threshold is reported for comparison only, never redefined."
+  },
+
+  "prohibitions_restated": [
+    "No scale is added or removed after seeing any numerical result.",
+    "No scale is described as the 'correct' or 'true' scale.",
+    "No scale's result is used to modify, retrain, or promote a new Model 3 configuration.",
+    "Fragmented testB images (testB_3, testB_11, testB_18, testB_19) are never excluded.",
+    "Stage 11 and Stage 12's official verdicts are not altered by any result in this stage."
+  ]
+}
