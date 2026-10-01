@@ -90,7 +90,7 @@ p8m's error is roughly flat across angles (no strong growth at large angles); th
 | Equivariance error < calibrated threshold | met |
 | **Clearly better than the non-equivariant control** | **NOT met** |
 
-**Recorded verdict: NO-GO.** Both p8m and the plain CNN performed well in absolute terms; the pre-registered criterion required the equivariant model to be *clearly* better than the non-equivariant control, and by the recorded protocol it was not (p8m was numerically better on every reported metric, but not by the required margin). This NO-GO on the "clear superiority over a plain CNN" question is itself a substantive negative finding from the synthetic phase, and it foreshadows the main manuscript's finding that equivariance alone did not confer a decisive practical advantage in the harder, real-tissue setting either — though, as stated above, the two settings are not directly comparable and this appendix draws no quantitative link between them.
+**Recorded verdict: NO-GO.** Both p8m and the plain CNN performed well in absolute terms; the pre-registered criterion required the equivariant model to be *clearly* better than the non-equivariant control, and by the recorded protocol it was not (p8m was numerically better on every reported metric, but not by the required margin). This NO-GO on the "clear superiority over a plain CNN" question is itself a substantive negative finding from the synthetic phase, and it foreshadows the main manuscript's finding that equivariance alone did not confer a decisive practical advantage in the harder, real-tissue setting either; though, as stated above, the two settings are not directly comparable and this appendix draws no quantitative link between them.
 
 ## S6. Interpretation
 
