@@ -354,7 +354,7 @@ Architectural equivariance (an exact transformation law for the typed representa
 
 **Funding:** This research received no external funding.
 
-**Data Availability Statement:** The datasets analyzed in this study are publicly available from their respective original repositories or public data platforms. Dataset-specific access conditions, licensing terms, and citation requirements apply. The authors did not generate or collect the underlying datasets.
+**Data Availability Statement:** Derived data generated for this study (the anatomical reference construction outputs, evaluation results, and the GlaS patient-disjoint split manifest) are openly available at https://github.com/Islam-DS/nematic-orientation-histopathology. The underlying raw datasets analyzed in this study (GlaS, CRAG, PANDA) are third-party data obtained from their original public sources under their own access and licensing terms, and are not redistributed in this repository; dataset-specific access conditions, licensing terms, and citation requirements apply, and the authors did not generate or collect these underlying datasets (see Section 3.1).
 
 **Code Availability Statement:** The code developed for this study is available at https://github.com/Islam-DS/nematic-orientation-histopathology.
 
